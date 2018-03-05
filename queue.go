@@ -13,35 +13,42 @@ const (
 
 type message struct {
 	messageType int
-	chID        doublinker.DoubID
-	data        []byte
+	chid        doublinker.DoubID
+	data        string
 }
 
 type queue struct {
-	channel chan *message
-	done    chan bool
+	upChannel   chan *message
+	downChannel chan *message
+	done        chan bool
 }
 
-func (q *queue) Push(m *message) {
-	q.channel <- m
+func (q *queue) pushUp(m *message) {
+	q.upChannel <- m
 }
 
-func (q *queue) Pull() *message {
-	m := <-q.channel
-	return m
+func (q *queue) pullUp() <-chan *message {
+	return q.upChannel
 }
 
-//sigleton
-var single *queue
-var mutex sync.Mutex
+func (q *queue) pushDown(m *message) {
+	q.downChannel <- m
+}
 
-func GetQueueInstance() *queue {
-	if single == nil {
-		mutex.Lock()
-		if single == nil {
-			single = &queue{channel: make(chan *message, 1024*1024), done: make(chan bool, 1)}
+func (q *queue) pullDown() <-chan *message {
+	return q.downChannel
+}
+
+var singleQ *queue
+var mutexQ sync.Mutex
+
+func getQueueInstance() *queue {
+	if singleQ == nil {
+		mutexQ.Lock()
+		if singleQ == nil {
+			singleQ = &queue{upChannel: make(chan *message, 1024*1024), downChannel: make(chan *message, 1024*1024), done: make(chan bool, 1)}
 		}
-		mutex.Unlock()
+		mutexQ.Unlock()
 	}
-	return single
+	return singleQ
 }

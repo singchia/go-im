@@ -7,5 +7,13 @@ type groups struct {
 type group struct {
 	gid     string
 	owner   user
-	members []user
+	members []string //seperate the persistent data and the runtime states
+}
+
+type groupStatesIndex struct {
+	states map[string]groupStates //gid and userStates
+}
+
+type groupStates struct {
+	//TODO
 }

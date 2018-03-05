@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"net"
 	"os"
 	"time"
@@ -12,7 +13,7 @@ type accepter struct {
 	linker *doublinker.Doublinker
 }
 
-func (a *accepter) Serve() {
+func (a *accepter) serve() {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		os.Exit(1)
@@ -26,29 +27,52 @@ func (a *accepter) Serve() {
 		}
 
 		ch := make(chan []byte, 1024)
-		chID := a.linker.Add(ch)
-		go a.handle(conn, ch, chID)
+		chid := a.linker.Add(ch)
+		go a.handle(conn, ch, chid)
 	}
 }
 
-func (a *accepter) handle(conn net.Conn, ch <-chan []byte, chID doublinker.DoubID) {
+func (a *accepter) dispatch() {
+	for i := 0; i < 100; i++ {
+		go func() {
+			for {
+				select {
+				case message := <-GetQueueInstance().pullDown():
+					a.linker.Retrieve(message.chid).(chan []byte) <- message.data
+				}
+			}
+		}()
+	}
+}
+
+func (a *accepter) handle(conn net.Conn, ch <-chan []byte, chid doublinker.DoubID) {
 	//in case of blocking the loop
-	conn.SetReadDeadline(time.Now().Add(time.Microsecond * 500))
+	conn.SetReadDeadline(time.Now().Add(time.Microsecond * 50))
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
 	buf := make([]byte, 1024)
 	for {
 		select {
 		case data <- ch:
-			conn.Write(data)
-		default:
-			len, err := conn.Read(buf)
+			_, err := writer.WriteString(data)
 			if err != nil {
-				//delete node in linker
-				a.linker.Delete(chID)
-				//notify the user system
-				GetQueueInstance().Push(&message{messageType: CLOSED, chID: chID, data: nil})
+				a.linker.Delete(chid)
+				GetQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
+				return
+			}
+		default:
+			str, err := reader.ReadString('\n')
+			E, ok := err.(net.Error)
+			if ok && E.Timeout() {
+				continue
+			}
+			if err != nil {
+				a.linker.Delete(chid)
+				GetQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
 				conn.Close()
 				return
 			}
+			GetQueueInstance().pullUp(&message{messageType: DATA, chid: chid, data: str})
 		}
 	}
 }
