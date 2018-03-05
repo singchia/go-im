@@ -7,10 +7,13 @@ import (
 )
 
 const (
-	AUTH = iota
+	UNPARSED = iota
+	AUTH
 	LOGGED
 	CHATTING
 	NOFICATION
+	DATA
+	CLOSED
 )
 
 var singleSSI *sessionStatesIndex
@@ -21,7 +24,7 @@ type handler interface {
 }
 
 type sessionStatesIndex struct {
-	ss       map[string]*sessionStates //chid and sessionStates
+	ss       map[doublinker.DoubID]*sessionStates //chid and sessionStates
 	mutex    *sync.RWMutex
 	handlers map[int]handler
 }
@@ -30,7 +33,7 @@ func getSessionStatesIndex() *sessionStatesIndex {
 	if singleSSI == nil {
 		mutexSSI.Lock()
 		if singleSSI == nil {
-			singleSSI = &sessionStatesIndex{ss: make(map[string]*sessionStates), mutex: new(sync.RWMutex), handlers: make(map[string]handler)}
+			singleSSI = &sessionStatesIndex{ss: make(map[doublinker.DoubID]*sessionStates), mutex: new(sync.RWMutex), handlers: make(map[int]handler)}
 			singleSSI.handlers[AUTH] = getAuthStatesIndex()
 			singleSSI.handlers[LOGGED] = singleSSI
 		}
@@ -40,7 +43,7 @@ func getSessionStatesIndex() *sessionStatesIndex {
 }
 
 func (s *sessionStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
-	getQueueInstance.pushDown()
+	getQueueInstance().pushDown(&message{messageType: DATA, chid: chid, data: "unsupported command"})
 }
 
 func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string) {
@@ -49,11 +52,11 @@ func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string
 	s.mutex.RUnlock()
 
 	if !ok {
-		if !isAuth(cmd) {
+		if s.mapping(cmd) != AUTH {
 			getQueueInstance().pushDown(&message{chid: chid, data: "using [signup: foo] or [signin: foo]"})
 			return
 		}
-		ss := &sessionStates{states: make([]*string, 0, length), count: 0}
+		ss := &sessionStates{states: make([]int, 0, 1), count: 0}
 		ss.push(AUTH)
 		s.mutex.Lock()
 		s.ss[chid] = ss
@@ -62,9 +65,6 @@ func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string
 		return
 	}
 	if cmd == NONCOMMAND {
-		s.mutex.RLock()
-		states, ok := s.ss[chid] //since chid is unique, value is unique too
-		s.mutex.RUnlock()
 		s.handlers[states.top()].handle(chid, cmd, suffix)
 		return
 	}
@@ -79,6 +79,7 @@ func (s *sessionStatesIndex) mapping(cmd string) int {
 	if cmd == TOUSER || cmd == TOGROUP {
 		return CHATTING
 	}
+	return DATA
 }
 
 func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, cover bool) {
@@ -104,7 +105,7 @@ type sessionStates struct {
 
 func (s *sessionStates) pop() int {
 	if s.count == 0 {
-		return nil
+		return -1
 	}
 	s.count--
 	return s.states[s.count]
@@ -112,7 +113,7 @@ func (s *sessionStates) pop() int {
 
 func (s *sessionStates) top() int {
 	if s.count == 0 {
-		return nil
+		return -1
 	}
 	return s.states[s.count]
 }

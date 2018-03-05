@@ -28,11 +28,11 @@ func newParser() *parser {
 
 		arr, ok := cmdMap[len(cmd)]
 		if ok {
-			append(arr, cmd)
+			arr = append(arr, cmd)
 			continue
 		}
-		arr = make([]string)
-		append(arr, cmd)
+		arr = make([]string, 0, len(cmds))
+		arr = append(arr, cmd)
 		cmdMap[len(cmd)] = arr
 	}
 	return &parser{cmdMap: cmdMap, minLen: minLen}
@@ -43,7 +43,7 @@ func (p *parser) parse() {
 		go func() {
 			for {
 				select {
-				case message := <-GetQueueInstance().pullUp():
+				case message := <-getQueueInstance().pullUp():
 					cmd, suffix := p.split(message.data)
 					getSessionStatesIndex().dispatch(message.chid, cmd, suffix)
 				}

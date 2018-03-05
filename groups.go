@@ -6,7 +6,7 @@ type groups struct {
 
 type group struct {
 	gid     string
-	owner   user
+	owner   string
 	members []string //seperate the persistent data and the runtime states
 }
 

@@ -18,14 +18,14 @@ func getAuthStatesIndex() *authStatesIndex {
 	if singleASI == nil {
 		mutexASI.Lock()
 		if singleASI == nil {
-			singleASI = &authStatesIndex{as: make(map[string]*authStates), mutex: new(sync.RWMutex)}
+			singleASI = &authStatesIndex{as: make(map[doublinker.DoubID]*authStates), mutex: new(sync.RWMutex)}
 		}
 		mutexASI.Unlock()
 	}
 	return singleASI
 }
 
-func (a *authStatesIndex) validate(uid string) error {
+func (a *authStatesIndex) validate(uid string) bool {
 	if uid == "" || uid[0] < 'a' || uid[0] > 'z' {
 		return false
 	}
@@ -52,14 +52,15 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 		}
 
 		a.mutex.Lock()
+		var as *authStates
 		if cmd == SIGNUP {
-			as := &authStates{uid: suffix, flag: 1}
+			as = &authStates{uid: suffix, flag: 1}
 		} else {
-			as := &authStates{uid: suffix, flag: 3}
+			as = &authStates{uid: suffix, flag: 3}
 		}
 		a.as[chid] = as
 		a.mutex.Unlock()
-		getQueueInstance().pushDown(&message{chid: chid, data: []byte("enter passward\n")})
+		getQueueInstance().pushDown(&message{chid: chid, data: "enter passward\n"})
 		return
 	} else if cmd == SIGNOUT {
 
@@ -69,7 +70,7 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 	defer a.mutex.Unlock()
 	if as, ok := a.as[chid]; ok {
 		if as.flag == 1 {
-			as.flag == 2
+			as.flag = 2
 			as.passward = suffix
 			getQueueInstance().pushDown(&message{chid: chid, data: "re-enter passward\n"})
 			return
@@ -82,7 +83,7 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 			getQueueInstance().pushDown(&message{chid: chid, data: "re-enter passward\n"})
 			return
 		} else if as.flag == 3 {
-			if getUserInstance().lookupPwd(as.uid) == suffix {
+			if getUsersInstance().lookupPwd(as.uid) == suffix {
 				a.authSucceed(chid, as.uid)
 				return
 			}
@@ -92,10 +93,10 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 }
 
 func (a *authStatesIndex) authSucceed(chid doublinker.DoubID, uid string) {
-	delete(a.as[chid]) //clear the authStates
+	delete(a.as, chid) //clear the authStates
 	getQueueInstance().pushDown(&message{chid: chid, data: "auth succeed\n"})
 	us := &userStates{chid: chid, uid: uid, online: true}
-	getUserStatesInstance().addIndex(chid, as.uid, us)
+	getUserStatesIndex().addIndex(chid, uid, us)
 	getSessionStatesIndex().changeSession(chid, LOGGED, true)
 }
 

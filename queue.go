@@ -6,11 +6,6 @@ import (
 	"github.com/singchia/go-hammer/doublinker"
 )
 
-const (
-	CLOSED = iota
-	DATA
-)
-
 type message struct {
 	messageType int
 	chid        doublinker.DoubID

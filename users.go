@@ -48,23 +48,23 @@ var singleUSI *userStatesIndex
 var mutexUSI sync.Mutex
 
 type userStatesIndex struct {
-	uids  map[string]userStates            //uid and userStates
-	chids map[doublinker.DoubID]userStates //chid and userStates
+	uids  map[string]*userStates            //uid and userStates
+	chids map[doublinker.DoubID]*userStates //chid and userStates
 	mutex *sync.RWMutex
 }
 
-func (u *userStatesIndex) addIndex(chid string, uid string, states userStates) {
+func (u *userStatesIndex) addIndex(chid doublinker.DoubID, uid string, states *userStates) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
-	u.chids[uid] = states
+	u.chids[chid] = states
 	u.uids[uid] = states
 }
 
-func getUserStates() *userStatesIndex {
+func getUserStatesIndex() *userStatesIndex {
 	if singleUSI == nil {
 		mutexUSI.Lock()
 		if singleUSI == nil {
-			singleUSI = &users{states: make(map[string]userStates), chids: make(map[doublinker.DoubID]userStates)}
+			singleUSI = &userStatesIndex{uids: make(map[string]*userStates), chids: make(map[doublinker.DoubID]*userStates)}
 		}
 		mutexUSI.Unlock()
 	}

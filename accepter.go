@@ -13,12 +13,18 @@ type accepter struct {
 	linker *doublinker.Doublinker
 }
 
-func (a *accepter) serve() {
+func newAccepter() *accepter {
+	return &accepter{linker: doublinker.NewDoublinker()}
+}
+
+func (a *accepter) serve(addr string) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		os.Exit(1)
 	}
 	defer l.Close()
+
+	go a.dispatch()
 
 	for {
 		conn, err := l.Accept()
@@ -26,7 +32,7 @@ func (a *accepter) serve() {
 			os.Exit(1)
 		}
 
-		ch := make(chan []byte, 1024)
+		ch := make(chan string, 1024)
 		chid := a.linker.Add(ch)
 		go a.handle(conn, ch, chid)
 	}
@@ -37,27 +43,26 @@ func (a *accepter) dispatch() {
 		go func() {
 			for {
 				select {
-				case message := <-GetQueueInstance().pullDown():
-					a.linker.Retrieve(message.chid).(chan []byte) <- message.data
+				case message := <-getQueueInstance().pullDown():
+					a.linker.Retrieve(message.chid).(chan string) <- message.data
 				}
 			}
 		}()
 	}
 }
 
-func (a *accepter) handle(conn net.Conn, ch <-chan []byte, chid doublinker.DoubID) {
+func (a *accepter) handle(conn net.Conn, ch <-chan string, chid doublinker.DoubID) {
 	//in case of blocking the loop
 	conn.SetReadDeadline(time.Now().Add(time.Microsecond * 50))
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
-	buf := make([]byte, 1024)
 	for {
 		select {
-		case data <- ch:
+		case data := <-ch:
 			_, err := writer.WriteString(data)
 			if err != nil {
 				a.linker.Delete(chid)
-				GetQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
+				getQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
 				return
 			}
 		default:
@@ -68,11 +73,11 @@ func (a *accepter) handle(conn net.Conn, ch <-chan []byte, chid doublinker.DoubI
 			}
 			if err != nil {
 				a.linker.Delete(chid)
-				GetQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
+				getQueueInstance().pushUp(&message{messageType: CLOSED, chid: chid})
 				conn.Close()
 				return
 			}
-			GetQueueInstance().pullUp(&message{messageType: DATA, chid: chid, data: str})
+			getQueueInstance().pushUp(&message{messageType: UNPARSED, chid: chid, data: str})
 		}
 	}
 }
