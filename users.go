@@ -60,11 +60,31 @@ func (u *userStatesIndex) addIndex(chid doublinker.DoubID, uid string, states *u
 	u.uids[uid] = states
 }
 
+func (u *userStatesIndex) lookupUid(chid doublinker.DoubID) string {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	us, ok := u.chids[chid]
+	if ok {
+		return us.uid
+	}
+	return NULL
+}
+
+func (u *userStatesIndex) lookupChid(uid string) doublinker.DoubID {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	us, ok := u.uids[uid]
+	if ok {
+		return us.chid
+	}
+	return nil
+}
+
 func getUserStatesIndex() *userStatesIndex {
 	if singleUSI == nil {
 		mutexUSI.Lock()
 		if singleUSI == nil {
-			singleUSI = &userStatesIndex{uids: make(map[string]*userStates), chids: make(map[doublinker.DoubID]*userStates)}
+			singleUSI = &userStatesIndex{uids: make(map[string]*userStates), chids: make(map[doublinker.DoubID]*userStates), mutex: new(sync.RWMutex)}
 		}
 		mutexUSI.Unlock()
 	}
@@ -72,7 +92,6 @@ func getUserStatesIndex() *userStatesIndex {
 }
 
 type userStates struct {
-	chid   doublinker.DoubID
-	uid    string
-	online bool
+	chid doublinker.DoubID
+	uid  string
 }

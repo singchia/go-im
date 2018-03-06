@@ -3,15 +3,17 @@ package main
 import "strings"
 
 const (
-	NONCOMMAND = "non command"
+	NONCOMMAND = "non-command"
 	SIGNUP     = "signup:"
 	SIGNIN     = "signin:"
 	SIGNOUT    = "signout"
-	TOUSER     = "to user"
-	TOGROUP    = "to group"
+	TOUSER     = "to user:"
+	TOGROUP    = "to group:"
+	CLOSE      = "close" //system replace
+	NULL       = ""
 )
 
-var cmds = [...]string{SIGNUP, SIGNIN, SIGNOUT}
+var cmds = [...]string{SIGNUP, SIGNIN, SIGNOUT, TOUSER, TOGROUP, CLOSE}
 
 type parser struct {
 	cmdMap map[int][]string //length and command
@@ -28,7 +30,7 @@ func newParser() *parser {
 
 		arr, ok := cmdMap[len(cmd)]
 		if ok {
-			arr = append(arr, cmd)
+			cmdMap[len(cmd)] = append(arr, cmd)
 			continue
 		}
 		arr = make([]string, 0, len(cmds))
@@ -44,6 +46,10 @@ func (p *parser) parse() {
 			for {
 				select {
 				case message := <-getQueueInstance().pullUp():
+					if message.mtype == CLOSED {
+						getSessionStatesIndex().dispatch(message.chid, CLOSE, NULL)
+						continue
+					}
 					cmd, suffix := p.split(message.data)
 					getSessionStatesIndex().dispatch(message.chid, cmd, suffix)
 				}
@@ -62,7 +68,7 @@ func (p *parser) split(str string) (string, string) {
 		}
 		for _, cmd := range v {
 			if str[0:k] == cmd {
-				return cmd, strings.TrimSpace(str[k+1 : len(str)])
+				return cmd, strings.TrimSpace(str[k:len(str)])
 			}
 		}
 	}

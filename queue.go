@@ -7,9 +7,9 @@ import (
 )
 
 type message struct {
-	messageType int
-	chid        doublinker.DoubID
-	data        string
+	mtype int
+	chid  doublinker.DoubID
+	data  string
 }
 
 type queue struct {
