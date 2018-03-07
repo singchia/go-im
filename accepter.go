@@ -49,7 +49,7 @@ func (a *accepter) dispatch() {
 		go func() {
 			for {
 				select {
-				case message := <-getQueueInstance().pullDown():
+				case message := <-getQueue().pullDown():
 					a.linker.Retrieve(message.chid).(chan string) <- message.data
 				}
 			}
@@ -66,7 +66,7 @@ func (a *accepter) handle(conn net.Conn, ch <-chan string, chid doublinker.DoubI
 			_, err := writer.WriteString(data)
 			if err != nil {
 				a.linker.Delete(chid)
-				getQueueInstance().pushUp(&message{mtype: CLOSED, chid: chid})
+				getQueue().pushUp(&message{mtype: CLOSED, chid: chid})
 				return
 			}
 			writer.Flush()
@@ -81,11 +81,11 @@ func (a *accepter) handle(conn net.Conn, ch <-chan string, chid doublinker.DoubI
 			}
 			if err != nil {
 				a.linker.Delete(chid)
-				getQueueInstance().pushUp(&message{mtype: CLOSED, chid: chid})
+				getQueue().pushUp(&message{mtype: CLOSED, chid: chid})
 				conn.Close()
 				return
 			}
-			getQueueInstance().pushUp(&message{mtype: UNPARSED, chid: chid, data: str})
+			getQueue().pushUp(&message{mtype: UNPARSED, chid: chid, data: str})
 		}
 	}
 }

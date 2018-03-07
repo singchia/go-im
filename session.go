@@ -10,7 +10,7 @@ const (
 	AUTHORIZING = iota
 	AUTHORIZED
 	CHATTING
-	NOTIFYING
+	OPERATING
 	UNKNOW
 )
 
@@ -35,6 +35,7 @@ func getSessionStatesIndex() *sessionStatesIndex {
 			singleSSI.handlers[AUTHORIZING] = getAuthStatesIndex()
 			singleSSI.handlers[AUTHORIZED] = singleSSI
 			singleSSI.handlers[CHATTING] = getChatStatesIndex()
+			singleSSI.handlers[OPERATING] = getGroupStatesIndex()
 		}
 		mutexSSI.Unlock()
 	}
@@ -42,7 +43,7 @@ func getSessionStatesIndex() *sessionStatesIndex {
 }
 
 func (s *sessionStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
-	getQueueInstance().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command\n"})
+	getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command\n"})
 }
 
 func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string) {
@@ -52,7 +53,7 @@ func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string
 
 	if !ok {
 		if s.mapping(cmd) != AUTHORIZING {
-			getQueueInstance().pushDown(&message{chid: chid, data: "using [signup: foo] or [signin: foo]\n"})
+			getQueue().pushDown(&message{chid: chid, data: "using [signup: foo] or [signin: foo]\n"})
 			return
 		}
 		ss := &sessionStates{}
@@ -78,10 +79,13 @@ func (s *sessionStatesIndex) mapping(cmd string) int {
 	if cmd == TOUSER || cmd == TOGROUP {
 		return CHATTING
 	}
+	if cmd == CREATEGROUP || cmd == JOINGROUP || cmd == INVITEGROUP {
+		return OPTRATING
+	}
 	return UNKNOW
 }
 
-func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, cover bool) {
+func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, over bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	states, ok := s.ss[chid]

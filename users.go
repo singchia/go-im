@@ -10,11 +10,16 @@ var singleUS *users
 var mutexUS sync.Mutex
 
 type users struct {
-	us    map[string]string //uid and passward
+	us    map[string]*user //uid and passward
 	mutex *sync.RWMutex
 }
 
-func getUsersInstance() *users {
+type user struct {
+	passward string
+	groups   []string
+}
+
+func getUsersIndex() *users {
 	if singleUS == nil {
 		mutexUS.Lock()
 		if singleUS == nil {
@@ -35,13 +40,21 @@ func (u *users) isExists(uid string) bool {
 func (u *users) addUser(uid string, passward string) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
-	u.us[uid] = passward
+	user := &user{passward: passward}
+	u.us[uid] = user
+}
+
+func (u *users) appendGroup(uid string, gid string) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	u.us[uid].groups = append(u.us[uid].groups, gid)
+	return
 }
 
 func (u *users) lookupPwd(uid string) string {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
-	return u.us[uid]
+	return u.us[uid].passward
 }
 
 var singleUSI *userStatesIndex

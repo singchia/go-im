@@ -37,7 +37,7 @@ func (q *queue) pullDown() <-chan *message {
 var singleQ *queue
 var mutexQ sync.Mutex
 
-func getQueueInstance() *queue {
+func getQueue() *queue {
 	if singleQ == nil {
 		mutexQ.Lock()
 		if singleQ == nil {

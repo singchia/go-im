@@ -3,17 +3,20 @@ package main
 import "strings"
 
 const (
-	NONCOMMAND = "non-command"
-	SIGNUP     = "signup:"
-	SIGNIN     = "signin:"
-	SIGNOUT    = "signout"
-	TOUSER     = "to user:"
-	TOGROUP    = "to group:"
-	CLOSE      = "close" //system replace
-	NULL       = ""
+	NONCOMMAND  = "non-command"
+	SIGNUP      = "signup:"
+	SIGNIN      = "signin:"
+	SIGNOUT     = "signout"
+	TOUSER      = "to user:"
+	TOGROUP     = "to group:"
+	CREATEGROUP = "create group:"
+	JOINGROUP   = "join group:"
+	INVITEGROUP = "invite group:"
+	CLOSE       = "close" //system replace
+	NULL        = ""
 )
 
-var cmds = [...]string{SIGNUP, SIGNIN, SIGNOUT, TOUSER, TOGROUP, CLOSE}
+var cmds = [...]string{SIGNUP, SIGNIN, SIGNOUT, TOUSER, TOGROUP, CREATEGROUP, JOINGROUP, INVITEGROUP, CLOSE}
 
 type parser struct {
 	cmdMap map[int][]string //length and command
@@ -45,7 +48,7 @@ func (p *parser) parse() {
 		go func() {
 			for {
 				select {
-				case message := <-getQueueInstance().pullUp():
+				case message := <-getQueue().pullUp():
 					if message.mtype == CLOSED {
 						getSessionStatesIndex().dispatch(message.chid, CLOSE, NULL)
 						continue
