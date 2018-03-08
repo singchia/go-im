@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	AUTHORIZING = iota
+	AUTHORIZING = iota + 10
 	AUTHORIZED
 	CHATTING
 	OPERATING
@@ -36,6 +36,7 @@ func getSessionStatesIndex() *sessionStatesIndex {
 			singleSSI.handlers[AUTHORIZED] = singleSSI
 			singleSSI.handlers[CHATTING] = getChatStatesIndex()
 			singleSSI.handlers[OPERATING] = getGroupStatesIndex()
+			singleSSI.handlers[CLOSED] = singleSSI
 		}
 		mutexSSI.Unlock()
 	}
@@ -79,8 +80,11 @@ func (s *sessionStatesIndex) mapping(cmd string) int {
 	if cmd == TOUSER || cmd == TOGROUP {
 		return CHATTING
 	}
-	if cmd == CREATEGROUP || cmd == JOINGROUP || cmd == INVITEGROUP {
-		return OPTRATING
+	if cmd == CREATEGROUP || cmd == JOINGROUP || cmd == INVITEGROUP || cmd == RESTORENOTES {
+		return OPERATING
+	}
+	if cmd == CLOSE {
+		return CLOSED
 	}
 	return UNKNOW
 }
@@ -90,7 +94,7 @@ func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, ov
 	defer s.mutex.RUnlock()
 	states, ok := s.ss[chid]
 	if ok {
-		if cover {
+		if over {
 			states.push(state)
 			return
 		}
@@ -98,9 +102,20 @@ func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, ov
 		states.push(state)
 		return
 	}
+	return
 }
 
-//an easy stack
+func (s *sessionStatesIndex) restoreSession(chid doublinker.DoubID) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	states, ok := s.ss[chid]
+	if ok {
+		states.pop()
+		return
+	}
+	return
+}
+
 type sessionStates struct {
 	states []int
 	count  int

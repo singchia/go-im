@@ -77,7 +77,7 @@ func (c *chatStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 		if peerChid == nil {
 			continue
 		}
-		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from user %s in group %s] %s", uid, cs.object, suffix)})
+		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from group %s user %s] %s\n", cs.object, uid, suffix)})
 	}
 }
 

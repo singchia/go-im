@@ -17,17 +17,62 @@ type users struct {
 type user struct {
 	passward string
 	groups   []string
+	gs       map[string]*groupState //gid and state //TODO bug here
+	curGid   string
+}
+
+type groupState struct {
+	state  int
+	srcUid string
 }
 
 func getUsersIndex() *users {
 	if singleUS == nil {
 		mutexUS.Lock()
 		if singleUS == nil {
-			singleUS = &users{us: make(map[string]string), mutex: new(sync.RWMutex)}
+			singleUS = &users{us: make(map[string]*user), mutex: new(sync.RWMutex)}
 		}
 		mutexUS.Unlock()
 	}
 	return singleUS
+}
+
+func (u *users) changeGroupState(gid string, dst string, src string, state int) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	ur := u.us[dst]
+	if ur.gs == nil {
+		ur.gs = make(map[string]*groupState)
+	}
+	gs := &groupState{state: state, srcUid: src}
+	ur.gs[gid] = gs
+	ur.curGid = gid
+}
+
+func (u *users) changeCurGid(uid, gid string) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	u.us[uid].curGid = gid
+}
+
+func (u *users) restoreGroupState(uid string) (gid string, srcUid string, state int) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	gid = u.us[uid].curGid
+	return gid, u.us[uid].gs[gid].srcUid, u.us[uid].gs[gid].state
+}
+
+func (u *users) getGroupState(uid, gid string) *groupState {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	gs, _ := u.us[uid].gs[gid]
+	return gs
+}
+
+func (u *users) deleteGroupState(uid string) {
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	delete(u.us[uid].gs, u.us[uid].curGid)
 }
 
 func (u *users) isExists(uid string) bool {
