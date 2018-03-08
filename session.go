@@ -11,6 +11,7 @@ const (
 	AUTHORIZED
 	CHATTING
 	OPERATING
+	INTERACTING
 	UNKNOW
 )
 
@@ -35,7 +36,8 @@ func getSessionStatesIndex() *sessionStatesIndex {
 			singleSSI.handlers[AUTHORIZING] = getAuthStatesIndex()
 			singleSSI.handlers[AUTHORIZED] = singleSSI
 			singleSSI.handlers[CHATTING] = getChatStatesIndex()
-			singleSSI.handlers[OPERATING] = getGroupStatesIndex()
+			singleSSI.handlers[OPERATING] = getGroups()
+			singleSSI.handlers[INTERACTING] = getGroups()
 			singleSSI.handlers[CLOSED] = singleSSI
 		}
 		mutexSSI.Unlock()
@@ -45,6 +47,9 @@ func getSessionStatesIndex() *sessionStatesIndex {
 
 func (s *sessionStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 	getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command\n"})
+	if cmd == SIGNOUT {
+
+	}
 }
 
 func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string) {
@@ -87,6 +92,12 @@ func (s *sessionStatesIndex) mapping(cmd string) int {
 		return CLOSED
 	}
 	return UNKNOW
+}
+
+func (s *sessionStatesIndex) lookupSessionState(chid doublinker.DoubID) int {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.ss[chid].top()
 }
 
 func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, over bool) {

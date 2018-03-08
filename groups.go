@@ -65,37 +65,20 @@ type group struct {
 	members []string //seperate the persistent data and the runtime states
 }
 
-var singleGSI *groupStatesIndex
-var mutexGSI sync.Mutex
-
-type groupStatesIndex struct {
-}
-
-func getGroupStatesIndex() *groupStatesIndex {
-	if singleGSI == nil {
-		mutexGSI.Lock()
-		if singleGSI == nil {
-			singleGSI = &groupStatesIndex{}
-		}
-		mutexGSI.Unlock()
-	}
-	return singleGSI
-}
-
-func (g *groupStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
+func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 	uid := getUserStatesIndex().lookupUid(chid)
 	if cmd == CREATEGROUP {
 		if !validate(suffix) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] invalid group name.\n"})
 			return
 		}
-		g := getGroups().addGroup(suffix, uid)
+		g := gps.addGroup(suffix, uid)
 		if g == nil {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] group already exists.\n"})
 			return
 		}
 		getUsersIndex().appendGroup(uid, suffix)
-		getGroups().appendUser(suffix, uid)
+		gps.appendUser(suffix, uid)
 		getQueue().pushDown(&message{chid: chid, data: "[from system] group create succeed.\n"})
 		return
 
@@ -115,8 +98,12 @@ func (g *groupStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] group owner offline.\n"})
 			return
 		}
-		getQueue().pushDown(&message{chid: ownerChid, data: fmt.Sprintf("[from %s] apply for joining group %s, Y/N/I? ", uid, suffix)})
-		getSessionStatesIndex().changeSession(ownerChid, OPERATING, true)
+		if getSessionStatesIndex().lookupSessionState(ownerChid) == INTERACTING {
+			getQueue().pushDown(&message{chid: chid, data: "[from system] group owner busy.\n"})
+			return
+		}
+		getQueue().pushDown(&message{chid: ownerChid, data: fmt.Sprintf("[from %s] apply for joining group %s, Y/N? ", uid, suffix)})
+		getSessionStatesIndex().changeSession(ownerChid, INTERACTING, true)
 		getUsersIndex().changeGroupState(suffix, owner, uid, UNHANDLEDJOIN)
 
 	} else if cmd == INVITEGROUP {
@@ -139,49 +126,29 @@ func (g *groupStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] object offline.\n"})
 			return
 		}
-		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from %s] invite you to join group %s, Y/N/I? ", uid, elems[0])})
-		getSessionStatesIndex().changeSession(peerChid, OPERATING, true)
+		if getSessionStatesIndex().lookupSessionState(peerChid) == INTERACTING {
+			getQueue().pushDown(&message{chid: chid, data: "[from system] object busy.\n"})
+			return
+		}
+
+		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from %s] invite you to join group %s, Y/N? ", uid, elems[0])})
+		getSessionStatesIndex().changeSession(peerChid, INTERACTING, true)
 		getUsersIndex().changeGroupState(elems[0], elems[1], uid, UNHANDLEDINVITE)
 
-	} else if cmd == RESTORENOTES {
-		if !validate(suffix) {
-			getQueue().pushDown(&message{chid: chid, data: "[from system] invalid group name.\n"})
-			getSessionStatesIndex().restoreSession(chid)
-			return
-		}
-		gs := getUsersIndex().getGroupState(uid, suffix)
-		if gs == nil {
-			getQueue().pushDown(&message{chid: chid, data: "[from system] no note with this group.\n"})
-			getSessionStatesIndex().restoreSession(chid)
-			return
-		}
-		if gs.state == UNHANDLEDJOIN {
-			getQueue().pushDown(&message{chid: chid, data: fmt.Sprintf("[from %s] apply for joining group %s, Y/N/I? ", gs.srcUid, suffix)})
-			getSessionStatesIndex().changeSession(chid, OPERATING, true)
-			getUsersIndex().changeCurGid(uid, suffix)
-			return
-		} else if gs.state == UNHANDLEDINVITE {
-			getQueue().pushDown(&message{chid: chid, data: fmt.Sprintf("[from %s] invite you to join group %s, Y/N/I? ", gs.srcUid, suffix)})
-			getSessionStatesIndex().changeSession(chid, OPERATING, true)
-			getUsersIndex().changeCurGid(uid, suffix)
-			return
-		}
-		return
-
 	} else {
-		g.interactive(chid, uid, suffix)
+		gps.interactive(chid, uid, suffix)
 	}
 }
 
-func (g *groupStatesIndex) interactive(chid doublinker.DoubID, uid, suffix string) {
+func (gps *groups) interactive(chid doublinker.DoubID, uid, suffix string) {
 	gid, srcUid, state := getUsersIndex().restoreGroupState(uid)
-	if suffix != "Y" && suffix != "N" && suffix != "I" {
-		getQueue().pushDown(&message{chid: chid, data: fmt.Sprintf("[from %s] Y/N/I? ", srcUid)})
+	if suffix != "Y" && suffix != "N" {
+		getQueue().pushDown(&message{chid: chid, data: fmt.Sprintf("[from %s] Y/N? ", srcUid)})
 		return
 	}
 	if suffix == "Y" {
 		if state == UNHANDLEDJOIN {
-			members := getGroups().appendUser(gid, srcUid)
+			members := gps.appendUser(gid, srcUid)
 			getUsersIndex().appendGroup(srcUid, gid)
 			getUsersIndex().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
@@ -191,7 +158,7 @@ func (g *groupStatesIndex) interactive(chid doublinker.DoubID, uid, suffix strin
 			}
 			return
 		} else if state == UNHANDLEDINVITE {
-			members := getGroups().appendUser(gid, uid)
+			members := gps.appendUser(gid, uid)
 			getUsersIndex().appendGroup(uid, gid)
 			getUsersIndex().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
@@ -207,7 +174,7 @@ func (g *groupStatesIndex) interactive(chid doublinker.DoubID, uid, suffix strin
 			getUsersIndex().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
 			peerChid := getUserStatesIndex().lookupChid(srcUid)
-			getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from system] join in group %s rejected.\n", gid)})
+			getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from %s] join in group %s rejected.\n", uid, gid)})
 		}
 	} else if suffix == "I" {
 		getSessionStatesIndex().restoreSession(chid)

@@ -49,24 +49,11 @@ func (u *users) changeGroupState(gid string, dst string, src string, state int) 
 	ur.curGid = gid
 }
 
-func (u *users) changeCurGid(uid, gid string) {
-	u.mutex.RLock()
-	defer u.mutex.RUnlock()
-	u.us[uid].curGid = gid
-}
-
 func (u *users) restoreGroupState(uid string) (gid string, srcUid string, state int) {
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
 	gid = u.us[uid].curGid
 	return gid, u.us[uid].gs[gid].srcUid, u.us[uid].gs[gid].state
-}
-
-func (u *users) getGroupState(uid, gid string) *groupState {
-	u.mutex.RLock()
-	defer u.mutex.RUnlock()
-	gs, _ := u.us[uid].gs[gid]
-	return gs
 }
 
 func (u *users) deleteGroupState(uid string) {
