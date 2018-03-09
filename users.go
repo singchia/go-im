@@ -26,7 +26,7 @@ type groupState struct {
 	srcUid string
 }
 
-func getUsersIndex() *users {
+func getUsers() *users {
 	if singleUS == nil {
 		mutexUS.Lock()
 		if singleUS == nil {
@@ -96,6 +96,17 @@ type userStatesIndex struct {
 	uids  map[string]*userStates            //uid and userStates
 	chids map[doublinker.DoubID]*userStates //chid and userStates
 	mutex *sync.RWMutex
+}
+
+func (u *userStatesIndex) delete(chid doublinker.DoubID) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	us, ok := u.chids[chid]
+	if !ok {
+		return
+	}
+	delete(u.chids, us.chid)
+	delete(u.uids, us.uid)
 }
 
 func (u *userStatesIndex) addIndex(chid doublinker.DoubID, uid string, states *userStates) {

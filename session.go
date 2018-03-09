@@ -20,6 +20,7 @@ var mutexSSI sync.Mutex
 
 type handler interface {
 	handle(chid doublinker.DoubID, cmd string, suffix string)
+	delete(chid doublinker.DoubID)
 }
 
 type sessionStatesIndex struct {
@@ -47,9 +48,26 @@ func getSessionStatesIndex() *sessionStatesIndex {
 
 func (s *sessionStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 	getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command\n"})
-	if cmd == SIGNOUT {
-
+	s.mutex.RLock()
+	states, ok := s.ss[chid]
+	if !ok && cmd == SIGNOUT {
+		getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] user unauthed yet.\n"})
+		s.mutex.RUnlock()
+		return
 	}
+	s.mutex.RUnlock()
+
+	s.mutex.Lock()
+	for ret := states.pop(); ret != -1; ret = states.pop() {
+		s.handlers[ret].delete(chid)
+	}
+	s.mutex.Unlock()
+	s.delete(chid)
+	return
+}
+
+func (s *sessionStatesIndex) delete(chid doublinker.DoubID) {
+	delete(s.ss, chid)
 }
 
 func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string) {
@@ -76,6 +94,7 @@ func (s *sessionStatesIndex) dispatch(chid doublinker.DoubID, cmd, suffix string
 	}
 	s.changeSession(chid, s.mapping(cmd), true)
 	s.handlers[s.mapping(cmd)].handle(chid, cmd, suffix)
+	return
 }
 
 func (s *sessionStatesIndex) mapping(cmd string) int {
@@ -118,10 +137,15 @@ func (s *sessionStatesIndex) changeSession(chid doublinker.DoubID, state int, ov
 
 func (s *sessionStatesIndex) restoreSession(chid doublinker.DoubID) {
 	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	states, ok := s.ss[chid]
+	s.mutex.RUnlock()
 	if ok {
 		states.pop()
+		if states.count == 0 {
+			s.mutex.Lock()
+			delete(s.ss, chid)
+			s.mutex.Unlock()
+		}
 		return
 	}
 	return
@@ -139,7 +163,6 @@ func (s *sessionStates) top() int {
 	return s.states[s.count-1]
 }
 
-// Push adds a node to the stack.
 func (s *sessionStates) push(n int) {
 	s.states = append(s.states[:s.count], n)
 	s.count++

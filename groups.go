@@ -34,6 +34,8 @@ func getGroups() *groups {
 	return singleGS
 }
 
+func (g *groups) delete(chid doublinker.DoubID) { return }
+
 func (g *groups) getGroup(gid string) *group {
 	g.mutex.RLock()
 	defer g.mutex.RUnlock()
@@ -77,7 +79,7 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] group already exists.\n"})
 			return
 		}
-		getUsersIndex().appendGroup(uid, suffix)
+		getUsers().appendGroup(uid, suffix)
 		gps.appendUser(suffix, uid)
 		getQueue().pushDown(&message{chid: chid, data: "[from system] group create succeed.\n"})
 		return
@@ -87,12 +89,12 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] invalid group name.\n"})
 			return
 		}
-		g := getGroups().getGroup(suffix)
+		g := gps.getGroup(suffix)
 		if g == nil {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] group does not exist.\n"})
 			return
 		}
-		owner := getGroups().getGroup(suffix).owner
+		owner := gps.getGroup(suffix).owner
 		ownerChid := getUserStatesIndex().lookupChid(owner)
 		if ownerChid == nil {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] group owner offline.\n"})
@@ -104,7 +106,7 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 		}
 		getQueue().pushDown(&message{chid: ownerChid, data: fmt.Sprintf("[from %s] apply for joining group %s, Y/N? ", uid, suffix)})
 		getSessionStatesIndex().changeSession(ownerChid, INTERACTING, true)
-		getUsersIndex().changeGroupState(suffix, owner, uid, UNHANDLEDJOIN)
+		getUsers().changeGroupState(suffix, owner, uid, UNHANDLEDJOIN)
 
 	} else if cmd == INVITEGROUP {
 		elems := strings.Split(suffix, " ")
@@ -133,7 +135,7 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 
 		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from %s] invite you to join group %s, Y/N? ", uid, elems[0])})
 		getSessionStatesIndex().changeSession(peerChid, INTERACTING, true)
-		getUsersIndex().changeGroupState(elems[0], elems[1], uid, UNHANDLEDINVITE)
+		getUsers().changeGroupState(elems[0], elems[1], uid, UNHANDLEDINVITE)
 
 	} else {
 		gps.interactive(chid, uid, suffix)
@@ -141,7 +143,7 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 }
 
 func (gps *groups) interactive(chid doublinker.DoubID, uid, suffix string) {
-	gid, srcUid, state := getUsersIndex().restoreGroupState(uid)
+	gid, srcUid, state := getUsers().restoreGroupState(uid)
 	if suffix != "Y" && suffix != "N" {
 		getQueue().pushDown(&message{chid: chid, data: fmt.Sprintf("[from %s] Y/N? ", srcUid)})
 		return
@@ -149,8 +151,8 @@ func (gps *groups) interactive(chid doublinker.DoubID, uid, suffix string) {
 	if suffix == "Y" {
 		if state == UNHANDLEDJOIN {
 			members := gps.appendUser(gid, srcUid)
-			getUsersIndex().appendGroup(srcUid, gid)
-			getUsersIndex().deleteGroupState(uid)
+			getUsers().appendGroup(srcUid, gid)
+			getUsers().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
 			for _, member := range members {
 				peerChid := getUserStatesIndex().lookupChid(member)
@@ -159,8 +161,8 @@ func (gps *groups) interactive(chid doublinker.DoubID, uid, suffix string) {
 			return
 		} else if state == UNHANDLEDINVITE {
 			members := gps.appendUser(gid, uid)
-			getUsersIndex().appendGroup(uid, gid)
-			getUsersIndex().deleteGroupState(uid)
+			getUsers().appendGroup(uid, gid)
+			getUsers().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
 			for _, member := range members {
 				peerChid := getUserStatesIndex().lookupChid(member)
@@ -171,7 +173,7 @@ func (gps *groups) interactive(chid doublinker.DoubID, uid, suffix string) {
 		return
 	} else if suffix == "N" {
 		if state == UNHANDLEDJOIN || state == UNHANDLEDINVITE {
-			getUsersIndex().deleteGroupState(uid)
+			getUsers().deleteGroupState(uid)
 			getSessionStatesIndex().restoreSession(chid)
 			peerChid := getUserStatesIndex().lookupChid(srcUid)
 			getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from %s] join in group %s rejected.\n", uid, gid)})

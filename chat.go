@@ -26,6 +26,14 @@ func getChatStatesIndex() *chatStatesIndex {
 	return singleCSI
 }
 
+func (c *chatStatesIndex) delete(chid doublinker.DoubID) {
+	uid := getUserStatesIndex().lookupUid(chid)
+	c.mutex.Lock()
+	delete(c.uc, uid)
+	c.mutex.Unlock()
+
+}
+
 func (c *chatStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 	uid := getUserStatesIndex().lookupUid(chid)
 	if cmd == TOUSER || cmd == TOGROUP {
@@ -45,6 +53,10 @@ func (c *chatStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 	cs, _ := c.uc[uid]
 
 	if cs.otype == TOUSER {
+		if !getUsers().isExists(cs.object) {
+			getQueue().pushDown(&message{chid: chid, data: "[from system] object does not exist.\n"})
+			return
+		}
 		peerChid := getUserStatesIndex().lookupChid(cs.object)
 		if peerChid == nil {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] object offline.\n"})

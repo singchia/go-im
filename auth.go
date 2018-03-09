@@ -25,17 +25,26 @@ func getAuthStatesIndex() *authStatesIndex {
 	return singleASI
 }
 
+func (a *authStatesIndex) delete(chid doublinker.DoubID) {
+	a.mutex.Lock()
+	delete(a.as, chid)
+	a.mutex.Unlock()
+}
+
 func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix string) {
 	if cmd == SIGNUP || cmd == SIGNIN { //cover the existing states
 		if !validate(suffix) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] invalid user name.\n"})
+			getSessionStatesIndex().restoreSession(chid)
 			return
 		}
-		if getUsersIndex().isExists(suffix) && cmd == SIGNUP {
+		if getUsers().isExists(suffix) && cmd == SIGNUP {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] user already exists.\n"})
+			getSessionStatesIndex().restoreSession(chid)
 			return
-		} else if !getUsersIndex().isExists(suffix) && cmd == SIGNIN {
+		} else if !getUsers().isExists(suffix) && cmd == SIGNIN {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] user does not exist.\n"})
+			getSessionStatesIndex().restoreSession(chid)
 			return
 		}
 		a.mutex.Lock()
@@ -49,8 +58,6 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 		a.mutex.Unlock()
 		getQueue().pushDown(&message{chid: chid, data: "[from system] enter passward:"})
 		return
-	} else if cmd == SIGNOUT {
-
 	}
 
 	a.mutex.RLock()
@@ -63,14 +70,14 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 			return
 		} else if as.flag == 2 {
 			if as.passward == suffix {
-				getUsersIndex().addUser(as.uid, as.passward)
+				getUsers().addUser(as.uid, as.passward)
 				a.authSucceed(chid, as.uid)
 				return
 			}
 			getQueue().pushDown(&message{chid: chid, data: "[from system] re-enter passward:"})
 			return
 		} else if as.flag == 3 {
-			if getUsersIndex().lookupPwd(as.uid) == suffix {
+			if getUsers().lookupPwd(as.uid) == suffix {
 				a.authSucceed(chid, as.uid)
 				return
 			}
