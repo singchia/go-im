@@ -33,7 +33,7 @@ make
 > ./go-im -addr 127.0.0.1:1202
 ```
 
-### 3.2. Clinet in usings telnet
+### 3.2. Clinet in using telnet
 
 **User _foo_**
 
