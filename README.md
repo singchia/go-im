@@ -151,4 +151,4 @@ to user: foo
 |to group:{group name}|send message to a group|
 |create group:{group name}|create a group|
 |join group:{group name}|join group|
-|invite group:{group name} {user name}|invite a user join group|
+|invite group:{group name} {user name}|invite a user into group|
