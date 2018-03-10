@@ -62,13 +62,13 @@ func (c *chatStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] object offline.\n"})
 			return
 		}
-		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from user %s] %s", uid, suffix)})
+		getQueue().pushDown(&message{chid: peerChid, data: fmt.Sprintf("[from user %s] %s\n", uid, suffix)})
 		return
 	}
 
 	group := getGroups().getGroup(cs.object)
 	if group == nil {
-		getQueue().pushDown(&message{chid: chid, data: "[from system] group does not exist\n"})
+		getQueue().pushDown(&message{chid: chid, data: "[from system] group does not exist.\n"})
 		return
 	}
 
@@ -80,7 +80,7 @@ func (c *chatStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
 		}
 	}
 	if isMemeber == false {
-		getQueue().pushDown(&message{chid: chid, data: "[from system] not a member of this group\n"})
+		getQueue().pushDown(&message{chid: chid, data: "[from system] not a member of this group.\n"})
 		return
 	}
 

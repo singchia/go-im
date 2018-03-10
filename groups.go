@@ -123,6 +123,10 @@ func (gps *groups) handle(chid doublinker.DoubID, cmd, suffix string) {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] already in group.\n"})
 			return
 		}
+		if !getUsers().isExists(elems[1]) {
+			getQueue().pushDown(&message{chid: chid, data: "[from system] object does not exist.\n"})
+			return
+		}
 		peerChid := getUserStatesIndex().lookupChid(elems[1])
 		if peerChid == nil {
 			getQueue().pushDown(&message{chid: chid, data: "[from system] object offline.\n"})

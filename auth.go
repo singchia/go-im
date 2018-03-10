@@ -88,7 +88,7 @@ func (a *authStatesIndex) handle(chid doublinker.DoubID, cmd string, suffix stri
 
 func (a *authStatesIndex) authSucceed(chid doublinker.DoubID, uid string) {
 	delete(a.as, chid) //clear the authStates
-	getQueue().pushDown(&message{chid: chid, data: "[from system] auth succeed\n"})
+	getQueue().pushDown(&message{chid: chid, data: "[from system] auth succeed.\n"})
 	us := &userStates{chid: chid, uid: uid}
 	getUserStatesIndex().addIndex(chid, uid, us)
 	getSessionStatesIndex().changeSession(chid, AUTHORIZED, true)

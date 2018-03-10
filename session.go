@@ -47,7 +47,10 @@ func getSessionStatesIndex() *sessionStatesIndex {
 }
 
 func (s *sessionStatesIndex) handle(chid doublinker.DoubID, cmd, suffix string) {
-	getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command\n"})
+	if cmd != SIGNOUT && cmd != CLOSE {
+		getQueue().pushDown(&message{mtype: PASSTHROUGH, chid: chid, data: "[from system] unsupported command.\n"})
+		return
+	}
 	s.mutex.RLock()
 	states, ok := s.ss[chid]
 	if !ok && cmd == SIGNOUT {
