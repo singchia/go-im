@@ -131,7 +131,8 @@ how you doing
 **User _anonymous_**
 
 ```
-> signup: anonymous
+> nc 127.0.0.1 1202
+signup: anonymous
 [from system] enter passward:passward
 [from system] re-enter passward:passward
 [from system] auth succeed
